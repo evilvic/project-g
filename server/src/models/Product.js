@@ -12,7 +12,7 @@ const productSchema = new Schema(
     },
     price: {
       type: Number,
-      required: true,
+      required: true
     },
     createdAt: {
       type: Date,

@@ -3,6 +3,7 @@ const bcryptjs = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const User = require('./models/User')
 const Product = require('./models/Product')
+const Client = require('./models/Client')
 
 const createToken = (user, secret, expiresIn) => {
   const { id, name, surname, email } = user
@@ -33,6 +34,35 @@ const resolvers = {
 
       return product
 
+    },
+    
+    getAllClients: async () => {
+      try {
+        const clients = await Client.find()
+        return clients
+      } catch (error) {
+        console.log(error)
+      }
+    },
+
+    getClientsBySalesman: async (_, {}, ctx) => {
+      try {
+        const clients = await Client.find({ salesman: ctx.user.id.toString() })
+        return clients
+      } catch (error) {
+        console.log(error)
+      }
+    },
+
+    getClient: async (_, { id }, ctx) => {
+
+      const client = await Client.findById(id)
+      if (!client) throw new Error('Client not found.')
+
+      if (client.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+      return client
+
     }
 
   },
@@ -50,7 +80,7 @@ const resolvers = {
 
       try {
         const newUser = new User(input)
-        newUser.save()
+        await newUser.save()
         return newUser
       } catch (error) {
         console.log(error)
@@ -77,9 +107,9 @@ const resolvers = {
     createProduct: async (_, { input }) => {
 
       try {
-        const product = new Product(input)
-        const newProuct = await product.save()
-        return newProuct
+        const newProduct = new Product(input)
+        await newProduct.save()
+        return newProduct
       } catch (error) {
         console.log(error)
       }
@@ -99,12 +129,56 @@ const resolvers = {
 
     deleteProduct: async (_, { id }) => {
 
-      let product = await Product.findById(id)
+      const product = await Product.findById(id)
       if (!product) throw new Error('Product does not exist.')
 
       await Product.findOneAndDelete({ _id: id})
 
       return 'Product removed.'
+
+    },
+
+    createClient: async (_, { input }, ctx) => {
+
+      const { email } = input
+
+      const client = await Client.findOne({ email })
+      if (client) throw new Error('Client already exist.')
+
+      try {
+        const newClient = new Client(input)
+        newClient.salesman = ctx.user.id
+        await newClient.save()
+        return newClient
+      } catch (error) {
+        console.log(error)
+      }
+
+    },
+
+    updateClient: async (_, { id, input }, ctx) => {
+
+      let client = await Client.findById(id)
+      if (!client) throw new Error('Client not found.')
+
+      if (client.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+      client = await Client.findOneAndUpdate({ _id: id }, input, { new: true })
+
+      return client
+
+    },
+
+    deleteClient: async (_, { id }, ctx) => {
+
+      const client = await Client.findById(id)
+      if (!client) throw new Error('Client not found.')
+
+      if (client.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+      await Client.findOneAndDelete({ _id: id})
+
+      return 'Client removed.'
 
     }
 
