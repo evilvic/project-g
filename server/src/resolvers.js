@@ -15,6 +15,24 @@ const resolvers = {
     getUser: async (_, { token }) => {
       const user = await jwt.verify(token, process.env.SECRET)
       return user
+    },
+
+    getAllProducts: async () => {
+      try {
+        const products = await Product.find()
+        return products
+      } catch (error) {
+        console.log(error)
+      }
+    },
+
+    getProduct: async (_, { id }) => {
+
+      const product = await Product.findById(id)
+      if (!product) throw new Error('Product does not exist.')
+
+      return product
+
     }
 
   },
@@ -53,6 +71,40 @@ const resolvers = {
       return {
         token: createToken(userExist, process.env.SECRET, '24h')
       }
+
+    },
+
+    createProduct: async (_, { input }) => {
+
+      try {
+        const product = new Product(input)
+        const newProuct = await product.save()
+        return newProuct
+      } catch (error) {
+        console.log(error)
+      }
+
+    },
+
+    updateProduct: async (_, { id, input }) => {
+
+      let product = await Product.findById(id)
+      if (!product) throw new Error('Product does not exist.')
+
+      product = await Product.findOneAndUpdate({ _id: id }, input, { new: true })
+
+      return product
+
+    },
+
+    deleteProduct: async (_, { id }) => {
+
+      let product = await Product.findById(id)
+      if (!product) throw new Error('Product does not exist.')
+
+      await Product.findOneAndDelete({ _id: id})
+
+      return 'Product removed.'
 
     }
 
