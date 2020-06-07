@@ -12,6 +12,7 @@ const createToken = (user, secret, expiresIn) => {
 }
 
 const resolvers = {
+
   Query: {
     
     getUser: async (_, { token }) => {
@@ -64,9 +65,74 @@ const resolvers = {
 
       return client
 
+    },
+
+    getAllOrders: async () => {
+
+      try {
+        const orders = await Order.find()
+        return orders
+      } catch (error) {
+        console.log(error)
+      }
+
+    },
+
+    
+    getOrdersBySalesman: async (_, {}, ctx) => {
+
+      try {
+        const orders = await Order.find({ salesman: ctx.user.id.toString() })
+        return orders
+      } catch (error) {
+        console.log(error)
+      }
+
+    },
+
+    getOrder: async (_, { id }, ctx) => {
+
+      const order = await Order.findById(id)
+      if (!order) throw new Error('Order not found.')
+
+      if (order.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+      return order
+
+    },
+
+    getOrderByState: async (_, { state }, ctx) => {
+
+      const orders = await Order.find({ salesman: ctx.user.id.toString(), state })
+
+      return orders
+
+    },
+
+    getBestClients: async () => {
+
+      const clients = await Order.aggregate([
+        { $match: { state: 'completed' } },
+        { $group: {
+          _id: '$client',
+          total: { $sum: '$total' }
+        } },
+        {
+          $lookup: {
+            from: 'clients',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'clients'
+          }
+        }
+      ])
+
+      return clients  
+
     }
 
   },
+
   Mutation: {
 
     createUser: async (_, { input }) => {
@@ -205,14 +271,65 @@ const resolvers = {
           await product.save()
         }
 
-        const order = new Order(input)
-        order.salesman = ctx.user.id
-        await order.save()
-        return order
-
       }
 
-    }
+      const order = new Order(input)
+      order.salesman = ctx.user.id
+      await order.save()
+      return order
+
+    },
+
+    updateOrder: async (_, { id, input }, ctx) => {
+
+      const { client: clientId, products } = input
+
+      let order = await Order.findById(id)
+      if (!order) throw new Error('Order not found.')
+
+      let client = await Client.findById(clientId)
+      if (!client) throw new Error('Client not found.')
+  
+      if (client.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+
+      if(products) {
+
+        for await (const item of products) {
+  
+          const { id } = item
+  
+          const product = await Product.findById(id)
+  
+          if (item.quantity > product.existence) {
+            throw new Error(`The item "${product.name}" does not have enough stock.`)
+          } else {
+            product.existence -= item.quantity
+            await product.save()
+          }
+  
+        }
+
+      }
+  
+      order = await Order.findOneAndUpdate({ _id: id }, input, { new: true })
+  
+      return order
+
+    },
+
+    deleteOrder: async (_, { id }, ctx) => {
+
+      const order = await Order.findById(id)
+      if (!order) throw new Error('Order not found.')
+
+      if (order.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+      await Order.findOneAndDelete({ _id: id})
+
+      return 'Order removed.'
+
+    },
 
   }
 }
