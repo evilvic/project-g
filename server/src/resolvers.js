@@ -124,10 +124,52 @@ const resolvers = {
             foreignField: '_id',
             as: 'clients'
           }
+        },
+        {
+          $limit: 10
+        },
+        {
+          $sort : { total: -1 }
         }
       ])
 
       return clients  
+
+    },
+
+    getBestSalesmen: async () => {
+
+      const salesmen = await Order.aggregate([
+        { $match: { state: 'completed' } },
+        { $group: {
+          _id: '$salesman',
+          total: { $sum: '$total' }
+        } },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'salesmen'
+          }
+        },
+        {
+          $limit: 3
+        },
+        {
+          $sort : { total: -1 }
+        }
+      ])
+
+      return salesmen
+
+    },
+
+    searchProduct: async (_, { text }) => {
+
+      const products = await Product.find({ $text: { $search: text } }).limit(10)
+
+      return products
 
     }
 
