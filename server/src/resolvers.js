@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken')
 const User = require('./models/User')
 const Product = require('./models/Product')
 const Client = require('./models/Client')
+const Order = require('./models/Order')
 
 const createToken = (user, secret, expiresIn) => {
   const { id, name, surname, email } = user
@@ -179,6 +180,37 @@ const resolvers = {
       await Client.findOneAndDelete({ _id: id})
 
       return 'Client removed.'
+
+    },
+
+    createOrder: async (_, { input }, ctx) => {
+
+      const { client: id, products } = input
+
+      let client = await Client.findById(id)
+      if (!client) throw new Error('Client not found.')
+
+      if (client.salesman.toString() !== ctx.user.id ) throw new Error('You have no access.')
+
+      for await (const item of products) {
+
+        const { id } = item
+
+        const product = await Product.findById(id)
+
+        if (item.quantity > product.existence) {
+          throw new Error(`The item "${product.name}" does not have enough stock.`)
+        } else {
+          product.existence -= item.quantity
+          await product.save()
+        }
+
+        const order = new Order(input)
+        order.salesman = ctx.user.id
+        await order.save()
+        return order
+
+      }
 
     }
 
